@@ -3,9 +3,9 @@ uvicorn
 streamlit
 requests
 pandas
-numpy
+numpy==1.23.5
+tensorflow==2.10.0
 joblib
-tensorflow
-scikit-learn
+scikit-learn==1.1.3
 openai
 python-dotenv
