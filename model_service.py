@@ -30,8 +30,15 @@ def get_model():
     global _loaded_model
     if _loaded_model is None:
         print(f"Loading Keras model from: {MODEL_PATH}")
-        from keras.models import load_model
-        _loaded_model = load_model(MODEL_PATH, compile=False)
+
+        import keras
+
+        _loaded_model = keras.models.load_model(
+            MODEL_PATH,
+            compile=False,
+            custom_objects={"leaky_relu": keras.layers.LeakyReLU()},
+        )
+
         print("Keras model loaded successfully.")
     return _loaded_model
 
