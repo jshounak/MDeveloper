@@ -4,6 +4,8 @@ from typing import List, Dict, Any
 import joblib
 import numpy as np
 
+print("Imported model_service successfully")
+
 BASE_DIR = Path(__file__).resolve().parent
 MODEL_PATH = BASE_DIR / "MDeveloper.keras"
 SCALER_PATH = BASE_DIR / "scaler.joblib"
@@ -25,6 +27,7 @@ _loaded_scaler = None
 
 
 def get_model():
+    print("Loading keras model...")
     global _loaded_model
     if _loaded_model is None:
         print("Loading Keras model...")
@@ -35,6 +38,7 @@ def get_model():
 
 
 def get_scaler():
+    print("Loading scaler...")
     global _loaded_scaler
     if _loaded_scaler is None:
         print("Loading scaler...")
