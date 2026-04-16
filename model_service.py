@@ -4,7 +4,7 @@ from typing import List, Dict, Any
 import joblib
 import numpy as np
 
-print("Imported model_service successfully")
+print("Loading model_service.py")
 
 BASE_DIR = Path(__file__).resolve().parent
 MODEL_PATH = BASE_DIR / "MDeveloper.keras"
@@ -27,23 +27,21 @@ _loaded_scaler = None
 
 
 def get_model():
-    print("Loading keras model...")
     global _loaded_model
     if _loaded_model is None:
-        print("Loading Keras model...")
+        print(f"Loading Keras model from: {MODEL_PATH}")
         from keras.models import load_model
         _loaded_model = load_model(MODEL_PATH, compile=False)
-        print("Keras model loaded.")
+        print("Keras model loaded successfully.")
     return _loaded_model
 
 
 def get_scaler():
-    print("Loading scaler...")
     global _loaded_scaler
     if _loaded_scaler is None:
-        print("Loading scaler...")
+        print(f"Loading scaler from: {SCALER_PATH}")
         _loaded_scaler = joblib.load(SCALER_PATH)
-        print("Scaler loaded.")
+        print("Scaler loaded successfully.")
     return _loaded_scaler
 
 
@@ -61,11 +59,17 @@ def predict_vagmd(inputs: dict) -> dict:
         dtype=float,
     )
 
+    print("Prediction input array shape:", x.shape)
+    print("Prediction input array:", x.tolist())
+
     scaler = get_scaler()
     model = get_model()
 
     x_scaled = scaler.transform(x)
+    print("Scaled input shape:", x_scaled.shape)
+
     y_pred = model.predict(x_scaled, verbose=0)
+    print("Raw prediction output:", y_pred.tolist())
 
     return {
         "Tcond_pred": float(y_pred[0, 0]),
@@ -100,6 +104,7 @@ def compare_vagmd_cases(cases: List[Dict[str, Any]]) -> Dict[str, Any]:
         name = case["name"]
         inputs = case["inputs"]
 
+        print(f"Running comparison case: {name}")
         pred = predict_vagmd(inputs)
         warnings = validate_case_inputs(inputs)
 

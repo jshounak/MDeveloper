@@ -17,9 +17,11 @@ app = FastAPI(title="MDeveloper API")
 
 def get_openai_client():
     from openai import OpenAI
+
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
         raise RuntimeError("OPENAI_API_KEY is not set")
+
     return OpenAI(api_key=api_key)
 
 
@@ -52,6 +54,13 @@ Guidelines:
         input=message,
         max_output_tokens=300,
     )
+
+    print("=== OPENAI DEBUG START ===")
+    print("message:", message)
+    print("output_text repr:", repr(getattr(response, "output_text", None)))
+    print("response id:", getattr(response, "id", None))
+    print("response status:", getattr(response, "status", None))
+    print("=== OPENAI DEBUG END ===")
 
     if getattr(response, "output_text", None):
         text = response.output_text.strip()
@@ -114,10 +123,11 @@ def predict(payload: VAGMDInput):
         from model_service import predict_vagmd
 
         data = payload.model_dump()
-        print("INPUT:", data)
+        print("PREDICT INPUT:", json.dumps(data, indent=2))
 
         result = predict_vagmd(data)
-        print("RESULT:", result)
+
+        print("PREDICT RESULT:", result)
         print("=== PREDICT SUCCESS ===")
         return result
 
@@ -134,9 +144,11 @@ def compare(payload: CompareRequest):
         from model_service import compare_vagmd_cases
 
         cases = [case.model_dump() for case in payload.cases]
-        print("CASES:", json.dumps(cases, indent=2))
+        print("COMPARE CASES:", json.dumps(cases, indent=2))
 
         result = compare_vagmd_cases(cases)
+
+        print("COMPARE RESULT:", json.dumps(result, indent=2, default=str))
         print("=== COMPARE SUCCESS ===")
         return result
 
@@ -153,6 +165,7 @@ def chat(payload: ChatRequest):
         reply = chat_with_openai(payload.message)
         print("=== CHAT SUCCESS ===")
         return {"response": reply}
+
     except Exception as exc:
         print("=== CHAT ERROR ===")
         traceback.print_exc()
