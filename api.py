@@ -14,6 +14,11 @@ print("OPENAI_API_KEY loaded:", os.environ.get("OPENAI_API_KEY") is not None)
 
 app = FastAPI(title="MDeveloper API")
 
+@app.on_event("startup")
+def load_artifacts_on_startup():
+    from model_service import get_model, get_scaler
+    get_model()
+    get_scaler()
 
 def get_openai_client():
     from openai import OpenAI
