@@ -7,6 +7,8 @@ from pydantic import BaseModel
 from openai import OpenAI
 
 from model_service import compare_vagmd_cases, predict_vagmd
+print("Imported model_service successfully")
+
 from dotenv import load_dotenv
 load_dotenv(override=True)
 print("API KEY LOADED:", os.environ.get("OPENAI_API_KEY") is not None)

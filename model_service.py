@@ -3,7 +3,6 @@ from typing import List, Dict, Any
 
 import joblib
 import numpy as np
-from keras.models import load_model
 
 BASE_DIR = Path(__file__).resolve().parent
 MODEL_PATH = BASE_DIR / "MDeveloper.keras"
@@ -28,14 +27,19 @@ _loaded_scaler = None
 def get_model():
     global _loaded_model
     if _loaded_model is None:
+        print("Loading Keras model...")
+        from keras.models import load_model
         _loaded_model = load_model(MODEL_PATH, compile=False)
+        print("Keras model loaded.")
     return _loaded_model
 
 
 def get_scaler():
     global _loaded_scaler
     if _loaded_scaler is None:
+        print("Loading scaler...")
         _loaded_scaler = joblib.load(SCALER_PATH)
+        print("Scaler loaded.")
     return _loaded_scaler
 
 
