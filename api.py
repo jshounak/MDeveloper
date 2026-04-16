@@ -1,24 +1,31 @@
 from typing import Any, Dict, List
 import os
 import json
-print("Starting api.py")
+import traceback
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from openai import OpenAI
-
-from model_service import compare_vagmd_cases, predict_vagmd
-print("Imported model_service successfully")
-
 from dotenv import load_dotenv
-load_dotenv(override=True)
-print("API KEY LOADED:", os.environ.get("OPENAI_API_KEY") is not None)
+
+load_dotenv()
+
+print("Starting api.py")
+print("OPENAI_API_KEY loaded:", os.environ.get("OPENAI_API_KEY") is not None)
 
 app = FastAPI(title="MDeveloper API")
 
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+
+def get_openai_client():
+    from openai import OpenAI
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY is not set")
+    return OpenAI(api_key=api_key)
 
 
 def chat_with_openai(message: str) -> str:
+    client = get_openai_client()
+
     instructions = """
 You are MDeveloper, a technical assistant for vacuum-enhanced air gap membrane distillation (VAGMD).
 
@@ -40,35 +47,17 @@ Guidelines:
 """
 
     response = client.responses.create(
-        model="gpt-5.4-nano",
+        model="gpt-4.1-mini",
         instructions=instructions,
         input=message,
         max_output_tokens=300,
     )
 
-    # Debug prints
-    print("=== OPENAI DEBUG START ===")
-    print("message:", message)
-    print("output_text repr:", repr(getattr(response, "output_text", None)))
-    print("response id:", getattr(response, "id", None))
-    print("response status:", getattr(response, "status", None))
-
-    try:
-        dump = response.model_dump()
-        print("full response dump:")
-        print(json.dumps(dump, indent=2, default=str))
-    except Exception as exc:
-        print("could not dump full response:", exc)
-        print("raw response object:", response)
-
-    # First try the convenience helper
     if getattr(response, "output_text", None):
         text = response.output_text.strip()
         if text:
-            print("=== OPENAI DEBUG END (used output_text) ===")
             return text
 
-    # Fallback: walk output items and collect text safely
     chunks = []
     for item in getattr(response, "output", []) or []:
         if getattr(item, "type", None) == "message":
@@ -77,14 +66,7 @@ Guidelines:
                 if text:
                     chunks.append(text)
 
-    fallback_text = "\n".join(chunks).strip()
-    print("fallback_text repr:", repr(fallback_text))
-    print("=== OPENAI DEBUG END ===")
-
-    if fallback_text:
-        return fallback_text
-
-    return "No text returned from OpenAI."
+    return "\n".join(chunks).strip() or "No text returned from OpenAI."
 
 
 class VAGMDInput(BaseModel):
@@ -93,6 +75,10 @@ class VAGMDInput(BaseModel):
     S: float
     v_chan: float
     vac: float
+    L_type: int
+    sp_type: int
+    spa_type: int
+    membrane: int
 
 
 class VAGMDCase(BaseModel):
@@ -124,25 +110,50 @@ def health():
 @app.post("/predict")
 def predict(payload: VAGMDInput):
     try:
-        return predict_vagmd(payload.model_dump())
+        print("=== PREDICT START ===")
+        from model_service import predict_vagmd
+
+        data = payload.model_dump()
+        print("INPUT:", data)
+
+        result = predict_vagmd(data)
+        print("RESULT:", result)
+        print("=== PREDICT SUCCESS ===")
+        return result
+
     except Exception as exc:
+        print("=== PREDICT ERROR ===")
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @app.post("/compare")
 def compare(payload: CompareRequest):
     try:
+        print("=== COMPARE START ===")
+        from model_service import compare_vagmd_cases
+
         cases = [case.model_dump() for case in payload.cases]
-        return compare_vagmd_cases(cases)
+        print("CASES:", json.dumps(cases, indent=2))
+
+        result = compare_vagmd_cases(cases)
+        print("=== COMPARE SUCCESS ===")
+        return result
+
     except Exception as exc:
+        print("=== COMPARE ERROR ===")
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @app.post("/chat")
 def chat(payload: ChatRequest):
     try:
+        print("=== CHAT START ===")
         reply = chat_with_openai(payload.message)
+        print("=== CHAT SUCCESS ===")
         return {"response": reply}
     except Exception as exc:
-        print("chat error:", exc)
+        print("=== CHAT ERROR ===")
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(exc)) from exc
