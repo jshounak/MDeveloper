@@ -1,10 +1,13 @@
-import numpy as np
-import joblib
-from keras.models import load_model
+from pathlib import Path
 from typing import List, Dict, Any
 
-loaded_model = load_model("MDeveloper.keras")
-loaded_scaler = joblib.load("scaler.joblib")
+import joblib
+import numpy as np
+from keras.models import load_model
+
+BASE_DIR = Path(__file__).resolve().parent
+MODEL_PATH = BASE_DIR / "MDeveloper.keras"
+SCALER_PATH = BASE_DIR / "scaler.joblib"
 
 FEATURE_ORDER = [
     "T_mem_in",
@@ -18,21 +21,43 @@ FEATURE_ORDER = [
     "membrane",
 ]
 
-def predict_vagmd(inputs: dict) -> dict:
-    x = np.array([[
-        inputs["T_mem_in"],
-        inputs["T_con_in"],
-        inputs["S"],
-        inputs["v_chan"],
-        inputs["vac"],
-        inputs["L_type"],
-        inputs["sp_type"],
-        inputs["spa_type"],
-        inputs["membrane"],
-    ]], dtype=float)
+_loaded_model = None
+_loaded_scaler = None
 
-    x_scaled = loaded_scaler.transform(x)
-    y_pred = loaded_model.predict(x_scaled, verbose=0)
+
+def get_model():
+    global _loaded_model
+    if _loaded_model is None:
+        _loaded_model = load_model(MODEL_PATH, compile=False)
+    return _loaded_model
+
+
+def get_scaler():
+    global _loaded_scaler
+    if _loaded_scaler is None:
+        _loaded_scaler = joblib.load(SCALER_PATH)
+    return _loaded_scaler
+
+
+def validate_required_inputs(inputs: dict) -> None:
+    missing = [key for key in FEATURE_ORDER if key not in inputs]
+    if missing:
+        raise ValueError(f"Missing required inputs: {', '.join(missing)}")
+
+
+def predict_vagmd(inputs: dict) -> dict:
+    validate_required_inputs(inputs)
+
+    x = np.array(
+        [[float(inputs[key]) for key in FEATURE_ORDER]],
+        dtype=float,
+    )
+
+    scaler = get_scaler()
+    model = get_model()
+
+    x_scaled = scaler.transform(x)
+    y_pred = model.predict(x_scaled, verbose=0)
 
     return {
         "Tcond_pred": float(y_pred[0, 0]),
@@ -56,18 +81,13 @@ def validate_case_inputs(inputs: dict) -> List[str]:
 
     return warnings
 
-def compare_vagmd_cases(cases: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """
-    Compare multiple V-AGMD cases using MDeveloper.
-    Each case = {"name": str, "inputs": dict}
-    """
 
+def compare_vagmd_cases(cases: List[Dict[str, Any]]) -> Dict[str, Any]:
     if not cases:
         raise ValueError("At least one case must be provided.")
 
     results = []
 
-    # Run predictions
     for case in cases:
         name = case["name"]
         inputs = case["inputs"]
@@ -75,51 +95,52 @@ def compare_vagmd_cases(cases: List[Dict[str, Any]]) -> Dict[str, Any]:
         pred = predict_vagmd(inputs)
         warnings = validate_case_inputs(inputs)
 
-        results.append({
-            "name": name,
-            "inputs": inputs,
-            "outputs": pred,
-            "warnings": warnings
-        })
+        results.append(
+            {
+                "name": name,
+                "inputs": inputs,
+                "outputs": pred,
+                "warnings": warnings,
+            }
+        )
 
-    # Baseline = first case
     baseline_flux = results[0]["outputs"]["Flux_pred"]
     baseline_tcond = results[0]["outputs"]["Tcond_pred"]
 
-    # Compute deltas
-    for r in results:
-        flux = r["outputs"]["Flux_pred"]
-        tcond = r["outputs"]["Tcond_pred"]
+    for result in results:
+        flux = result["outputs"]["Flux_pred"]
+        tcond = result["outputs"]["Tcond_pred"]
 
-        r["comparison_vs_baseline"] = {
+        result["comparison_vs_baseline"] = {
             "delta_flux": flux - baseline_flux,
             "delta_tcond": tcond - baseline_tcond,
             "percent_flux_change": (
                 100 * (flux - baseline_flux) / baseline_flux
-                if baseline_flux != 0 else None
+                if baseline_flux != 0
+                else None
             ),
             "percent_tcond_change": (
                 100 * (tcond - baseline_tcond) / baseline_tcond
-                if baseline_tcond != 0 else None
-            )
+                if baseline_tcond != 0
+                else None
+            ),
         }
 
-    # Rank by flux
     ranked_by_flux = sorted(
         [
             {
-                "name": r["name"],
-                "Flux_pred": r["outputs"]["Flux_pred"]
+                "name": result["name"],
+                "Flux_pred": result["outputs"]["Flux_pred"],
             }
-            for r in results
+            for result in results
         ],
         key=lambda x: x["Flux_pred"],
-        reverse=True
+        reverse=True,
     )
 
     return {
         "baseline_case": results[0]["name"],
         "num_cases": len(results),
         "results": results,
-        "ranked_by_flux": ranked_by_flux
+        "ranked_by_flux": ranked_by_flux,
     }
